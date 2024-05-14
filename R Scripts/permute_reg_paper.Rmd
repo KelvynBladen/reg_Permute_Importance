@@ -1,0 +1,887 @@
+---
+title: "permute_reg"
+author: "Kelvyn Bladen"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Title
+
+```{r, message=FALSE, warning=FALSE}
+library(GGally)
+library(randomForest)
+library(dplyr)
+library(randomForestVIP)
+```
+
+
+```{r, eval=TRUE}
+set.seed(123)
+permute_refit <- vector(length = 6)
+drop_refit <- vector(length = 6)
+permute_valid <- vector(length = 6)
+drop_valid <- vector(length = 6)
+mrep <- 1
+for (j in seq_len(mrep)) {
+  sig <- diag(1, 6, 6)
+
+  df <- MASS::mvrnorm(1000, mu = rep(0, 6), Sigma = sig)
+
+  y <- 5 * df[, 1] + 4 * df[, 2] + 3 * df[, 3] +
+    2 * df[, 4] + 1 * df[, 5] + rnorm(1000, mean = 0, sd = 1)
+  df <- data.frame(cbind(df, y))
+  
+  dfv <- MASS::mvrnorm(1000, mu = rep(0, 6), Sigma = sig)
+  yv <- 5 * dfv[, 1] + 4 * dfv[, 2] + 3 * dfv[, 3] +
+    2 * dfv[, 4] + 1 * dfv[, 5] + rnorm(1000, mean = 0, sd = 1)
+  dfv <- data.frame(cbind(dfv, yv))
+
+  reg_full <- lm(y ~ ., data = df)
+  s <- summary(reg_full)
+  # m <- mean(s$residuals^2)
+  
+  p = predict(reg_full, dfv)
+  mv = mean((p-dfv$yv)^2)
+
+  imp <- vector(length = 6)
+  impv <- vector(length = 6)
+  lp <- list()
+  for (i in seq_len(6)) {
+    df_new <- df
+    df_new[i] <- df_new[sample(1:1000), i]
+    reg <- lm(y ~ ., data = df_new)
+    sp <- summary(reg)
+    lp[[i]] <- sp
+    names(lp)[i] <- paste0("s", i)
+    # imp[i] <- (new_m - m)/m
+    
+    p = predict(reg, dfv)
+    new_mv = mean((p-dfv$yv)^2)
+    imp[i] <- (new_mv - mv)#/mv
+    
+    dfv_new <- dfv
+    dfv_new[i] <- dfv_new[sample(1:1000), i]
+    p = predict(reg_full, dfv_new)
+    new_mv = mean((p-dfv$yv)^2)
+    impv[i] <- (new_mv - mv)#/mv
+  }
+  
+  imp1 <- pmax(imp, 0)
+  simp <- sqrt(imp1)
+  permute_refit <- permute_refit + simp / mrep
+  
+  impv1 <- pmax(impv, 0)
+  simpv <- sqrt(impv1)
+  permute_valid <- permute_valid + simpv / mrep
+
+  drop_imp <- vector(length = 6)
+  drop_impv <- vector(length = 6)
+  ld <- list()
+  for (i in seq_len(6)) {
+    df_new <- df
+    df_new[, i] <- 0
+    reg <- lm(y ~ ., data = df_new)
+    sd <- summary(reg)
+    ld[[i]] <- sd
+    names(ld)[i] <- paste0("s", i)
+    # drop_imp[i] <- new_m - m
+    
+    p = predict(reg, dfv)
+    new_mv = mean((p-dfv$yv)^2)
+    drop_imp[i] <- (new_mv - mv)#/mv
+    
+    dfv_new <- dfv
+    dfv_new[, i] <- 0
+    p = predict(reg_full, dfv_new)
+    new_mv = mean((p-dfv$yv)^2)
+    drop_impv[i] <- (new_mv - mv)#/mv
+  }
+
+  drop_imp1 <- pmax(drop_imp, 0)
+  drop_simp <- sqrt(drop_imp1)
+  drop_refit <- drop_refit + drop_simp / mrep
+  
+  drop_impv1 <- pmax(drop_impv, 0)
+  drop_simpv <- sqrt(drop_impv1)
+  drop_valid <- drop_valid + drop_simpv / mrep
+}
+
+both <- as.data.frame(cbind(Coef = 5:0,
+                            Estimate = s$coefficients[-1, 1],
+                            permute_valid, drop_valid,
+                            t_value = s$coefficients[-1, 3],
+                            permute_refit, drop_refit))
+# why do these match t rather than t^2? Because I square rooted them
+ggpairs(both)
+#cor(both)
+both
+
+#ggsave("ind.pdf", ggpairs(both), dpi = 2400, width = 7, height = 7)
+```
+
+```{r, eval=TRUE}
+set.seed(123)
+permute_refit <- vector(length = 6)
+drop_refit <- vector(length = 6)
+permute_valid <- vector(length = 6)
+drop_valid <- vector(length = 6)
+mrep <- 1
+for (j in seq_len(mrep)) {
+  sig <- diag(1, 6, 6)
+
+  df <- MASS::mvrnorm(1000, mu = rep(0, 6), Sigma = sig)
+
+  y <- 5 * df[, 1] + 4 * df[, 2] + 3 * df[, 3] +
+    2 * df[, 4] + 1 * df[, 5] + rnorm(1000, mean = 0, sd = 10)
+  df <- data.frame(cbind(df, y))
+  
+  dfv <- MASS::mvrnorm(1000, mu = rep(0, 6), Sigma = sig)
+  yv <- 5 * dfv[, 1] + 4 * dfv[, 2] + 3 * dfv[, 3] +
+    2 * dfv[, 4] + 1 * dfv[, 5] + rnorm(1000, mean = 0, sd = 10)
+  dfv <- data.frame(cbind(dfv, yv))
+
+  reg_full <- lm(y ~ ., data = df)
+  s <- summary(reg_full)
+  # m <- mean(s$residuals^2)
+  
+  p = predict(reg_full, dfv)
+  mv = mean((p-dfv$yv)^2)
+
+  imp <- vector(length = 6)
+  impv <- vector(length = 6)
+  lp <- list()
+  for (i in seq_len(6)) {
+    df_new <- df
+    df_new[i] <- df_new[sample(1:1000), i]
+    reg <- lm(y ~ ., data = df_new)
+    sp <- summary(reg)
+    lp[[i]] <- sp
+    names(lp)[i] <- paste0("s", i)
+    # imp[i] <- (new_m - m)/m
+    
+    p = predict(reg, dfv)
+    new_mv = mean((p-dfv$yv)^2)
+    imp[i] <- (new_mv - mv)#/mv
+    
+    dfv_new <- dfv
+    dfv_new[i] <- dfv_new[sample(1:1000), i]
+    p = predict(reg_full, dfv_new)
+    new_mv = mean((p-dfv$yv)^2)
+    impv[i] <- (new_mv - mv)#/mv
+  }
+  
+  imp1 <- pmax(imp, 0)
+  simp <- sqrt(imp1)
+  permute_refit <- permute_refit + simp / mrep
+  
+  impv1 <- pmax(impv, 0)
+  simpv <- sqrt(impv1)
+  permute_valid <- permute_valid + simpv / mrep
+
+  drop_imp <- vector(length = 6)
+  drop_impv <- vector(length = 6)
+  ld <- list()
+  for (i in seq_len(6)) {
+    df_new <- df
+    df_new[, i] <- 0
+    reg <- lm(y ~ ., data = df_new)
+    sd <- summary(reg)
+    ld[[i]] <- sd
+    names(ld)[i] <- paste0("s", i)
+    # drop_imp[i] <- new_m - m
+    
+    p = predict(reg, dfv)
+    new_mv = mean((p-dfv$yv)^2)
+    drop_imp[i] <- (new_mv - mv)#/mv
+    
+    dfv_new <- dfv
+    dfv_new[, i] <- 0
+    p = predict(reg_full, dfv_new)
+    new_mv = mean((p-dfv$yv)^2)
+    drop_impv[i] <- (new_mv - mv)#/mv
+  }
+
+  drop_imp1 <- pmax(drop_imp, 0)
+  drop_simp <- sqrt(drop_imp1)
+  drop_refit <- drop_refit + drop_simp / mrep
+  
+  drop_impv1 <- pmax(drop_impv, 0)
+  drop_simpv <- sqrt(drop_impv1)
+  drop_valid <- drop_valid + drop_simpv / mrep
+}
+
+s
+
+both <- as.data.frame(cbind(coef = 5:0,
+                            Estimate = s$coefficients[-1, 1],
+                            permute_valid, drop_valid,
+                            t_value = s$coefficients[-1, 3],
+                            permute_refit, drop_refit))
+# why do these match t rather than t^2? Because I square rooted them
+ggpairs(both)
+#cor(both)
+both
+
+#ggsave("ind.pdf", ggpairs(both), dpi = 2400, width = 7, height = 7)
+```
+
+\newpage
+
+```{r, warning=FALSE, message=FALSE}
+permute_refit <- vector(length = 8)
+drop_refit <- vector(length = 8)
+
+permute_valid <- vector(length = 8)
+drop_valid <- vector(length = 8)
+
+permute_refit_rf <- vector(length = 8)
+drop_refit_rf <- vector(length = 8)
+
+permute_valid_rf <- vector(length = 8)
+drop_valid_rf <- vector(length = 8)
+
+set.seed(123)
+mrep <- 1
+sdv = 1
+n_size = 1000
+
+for (j in seq_len(mrep)) {
+  sig <- diag(1, 12, 12)
+
+  for (i in 1:4) {
+    for (k in 1:4) {
+      sig[i, k] <- ifelse(i == k, 1, 0.95)
+    }
+  }
+  strobl <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+
+  y <- 5 * strobl[, 1] + 5 * strobl[, 2] + 2 * strobl[, 3] +
+    5 * strobl[, 5] + 5 * strobl[, 6] + 2 * strobl[, 7] +
+    rnorm(n_size, mean = 0, sd = sdv)
+  strobl <- data.frame(cbind(strobl, y))
+  
+  dfv <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+  yv <- 5 * dfv[, 1] + 5 * dfv[, 2] + 2 * dfv[, 3] +
+    5 * dfv[, 5] + 5 * dfv[, 6] + 2 * dfv[, 7] +
+    rnorm(n_size, mean = 0, sd = sdv)
+  dfv <- data.frame(cbind(dfv, yv))
+
+  reg_full <- lm(y ~ ., data = strobl)
+  sc <- summary(reg_full)
+  m <- mean(sc$residuals^2)
+  
+  p = predict(reg_full, dfv)
+  mv = mean((p-dfv$yv)^2)
+  
+  # set.seed(123)
+  rf <- randomForest(y ~ ., data = strobl, importance = TRUE, mtry = 10)
+  imp = sqrt(as.data.frame(pmax(importance(rf), 0)))
+  imp_df = imp[1:8, ]
+
+  pt = predict(rf, strobl)
+  mvt = mean((pt - strobl$y)^2)
+  pv = predict(rf, dfv)
+  mvr = mean((pv - dfv$yv)^2)
+  
+  impr <- vector(length = 8)
+  impv <- vector(length = 8)
+  imprfr <- vector(length = 8)
+  imprfv <- vector(length = 8)
+  
+  for (i in seq_len(8)) {
+    df_new <- strobl
+    df_new[i] <- df_new[sample(1:n_size), i]
+    reg <- lm(y ~ ., data = df_new)
+    spc <- summary(reg)
+
+    prv = predict(reg, dfv)
+    new_m2 = mean((prv-dfv$yv)^2)
+    impr[i] <- (new_m2 - mv)
+    
+    rf1 = randomForest(y ~ ., data = df_new, mtry = 10)
+    
+    prfv = predict(rf1, dfv)
+    new_rfm2 = mean((prfv-dfv$yv)^2)
+    imprfr[i] <- (new_rfm2 - mvr)
+    
+    dfv_new <- dfv
+    dfv_new[i] <- dfv_new[sample(1:n_size), i]
+    
+    pp_valid = predict(reg_full, dfv_new)
+    sp_valid = (pp_valid-dfv_new$yv)
+    new_mv = mean((pp_valid-dfv_new$yv)^2)
+    impv[i] <- (new_mv - mv)
+    
+    pr_valid = predict(rf, dfv_new)
+    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    imprfv[i] <- (new_rfmv - mvr)
+  }
+  
+  imp1 <- pmax(impr, 0)
+  simp <- sqrt(imp1)
+  permute_refit <- permute_refit + simp / mrep
+  
+  impv1 <- pmax(impv, 0)
+  simpv <- sqrt(impv1)
+  permute_valid <- permute_valid + simpv / mrep
+  
+  imprf1 <- pmax(imprfr, 0)
+  simprf <- sqrt(imprf1)
+  permute_refit_rf <- permute_refit + simprf / mrep
+  
+  imprfv1 <- pmax(imprfv, 0)
+  simprfv <- sqrt(imprfv1)
+  permute_valid_rf <- permute_valid + simprfv / mrep
+  
+  drop_impr <- vector(length = 8)
+  drop_impv <- vector(length = 8)
+  drop_imprf <- vector(length = 8)
+  drop_imprfv <- vector(length = 8)
+
+  for (i in seq_len(8)) {
+    df_new <- strobl
+    df_new[, i] <- 0
+    reg <- lm(y ~ ., data = df_new)
+    sdc <- summary(reg)
+
+    prv = predict(reg, dfv)
+    new_m2 = mean((prv-dfv$yv)^2)
+    drop_impr[i] <- (new_m2 - mv)
+    
+    rf2 = randomForest(y ~ ., data = df_new, mtry = 10)
+    
+    prfv = predict(rf2, dfv)
+    new_rfm2 = mean((prfv-dfv$yv)^2)
+    drop_imprf[i] <- (new_rfm2 - mvr)
+    
+    dfv_new <- dfv
+    dfv_new[, i] <- 0
+    
+    dp_valid = predict(reg_full, dfv_new)
+    sd_valid = (dp_valid-dfv_new$yv)
+    new_mv = mean((dp_valid-dfv_new$yv)^2)
+    drop_impv[i] <- (new_mv - mv)
+    
+    pr_valid = predict(rf, dfv_new)
+    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    drop_imprfv[i] <- (new_rfmv - mvr)
+  }
+  
+  imp1 <- pmax(drop_impr, 0)
+  simp <- sqrt(imp1)
+  drop_refit <- drop_refit + simp / mrep
+  
+  drop_impv1 <- pmax(drop_impv, 0)
+  drop_simpv <- sqrt(drop_impv1)
+  drop_valid <- drop_valid + drop_simpv / mrep
+  
+  imprf1 <- pmax(drop_imprf, 0)
+  simprf <- sqrt(imprf1)
+  drop_refit_rf <- drop_refit + simprf / mrep
+  
+  drop_imprfv1 <- pmax(drop_imprfv, 0)
+  drop_simprfv <- sqrt(drop_imprfv1)
+  drop_valid_rf <- drop_valid + drop_simprfv / mrep
+}
+
+# df = as.data.frame(cbind(pp_res, dp_res, pp_valid, dp_valid))
+# ggpairs(df)
+# df = as.data.frame(cbind(sp_res, sd_res, sp_valid, sd_valid))
+# ggpairs(df)
+sc
+rf$rsq[500]
+
+sdf <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+                           Estimate = sc$coefficients[2:9, 1],
+                           permute_valid, drop_valid,
+                           t_value = sc$coefficients[2:9, 3],
+                           permute_refit, drop_refit))
+sdf
+ggpairs(sdf)
+#ggsave("stroblf.pdf", ggpairs(sdf), dpi = 2400, width = 7, height = 7)
+
+# set.seed(123)
+#vimp = vip::vi_firm(rf, train = strobl)
+#pdpImp <- vimp$Importance
+#imp_df = cbind(imp, pdpImp)[1:8, ]
+
+sdf1 <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+                           Estimate = sc$coefficients[2:9, 1],
+                           permute_valid = permute_valid_rf, 
+                           drop_valid = drop_valid_rf,
+                           t_value = sc$coefficients[2:9, 3],
+                           rf_oob = imp_df$`%IncMSE`,
+                           permute_refit = permute_refit_rf, 
+                           drop_refit = drop_refit_rf))
+sdf1
+ggpairs(sdf1)
+
+
+#ggsave("stroblrf.jpg", ggpairs(sdf1), dpi = 2400, width = 7, height = 7)
+```
+
+\newpage
+## Repeat with High SD
+
+```{r, warning=FALSE, message=FALSE}
+permute_refit <- vector(length = 8)
+drop_refit <- vector(length = 8)
+
+permute_valid <- vector(length = 8)
+drop_valid <- vector(length = 8)
+
+permute_refit_rf <- vector(length = 8)
+drop_refit_rf <- vector(length = 8)
+
+permute_valid_rf <- vector(length = 8)
+drop_valid_rf <- vector(length = 8)
+
+set.seed(123)
+mrep <- 1
+sdv = 10
+n_size = 1000
+
+for (j in seq_len(mrep)) {
+  sig <- diag(1, 12, 12)
+
+  for (i in 1:4) {
+    for (k in 1:4) {
+      sig[i, k] <- ifelse(i == k, 1, 0.95)
+    }
+  }
+  strobl <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+
+  y <- 5 * strobl[, 1] + 5 * strobl[, 2] + 2 * strobl[, 3] +
+    5 * strobl[, 5] + 5 * strobl[, 6] + 2 * strobl[, 7] +
+    rnorm(n_size, mean = 0, sd = sdv)
+  strobl <- data.frame(cbind(strobl, y))
+  
+  dfv <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+  yv <- 5 * dfv[, 1] + 5 * dfv[, 2] + 2 * dfv[, 3] +
+    5 * dfv[, 5] + 5 * dfv[, 6] + 2 * dfv[, 7] +
+    rnorm(n_size, mean = 0, sd = sdv)
+  dfv <- data.frame(cbind(dfv, yv))
+
+  reg_full <- lm(y ~ ., data = strobl)
+  sc <- summary(reg_full)
+  m <- mean(sc$residuals^2)
+  
+  p = predict(reg_full, dfv)
+  mv = mean((p-dfv$yv)^2)
+  
+  # set.seed(123)
+  rf <- randomForest(y ~ ., data = strobl, importance = TRUE, mtry = 10)
+  imp = sqrt(as.data.frame(pmax(importance(rf), 0)))
+  imp_df = imp[1:8, ]
+
+  pt = predict(rf, strobl)
+  mvt = mean((pt - strobl$y)^2)
+  pv = predict(rf, dfv)
+  mvr = mean((pv - dfv$yv)^2)
+  
+  impr <- vector(length = 8)
+  impv <- vector(length = 8)
+  imprfr <- vector(length = 8)
+  imprfv <- vector(length = 8)
+  
+  for (i in seq_len(8)) {
+    df_new <- strobl
+    df_new[i] <- df_new[sample(1:n_size), i]
+    reg <- lm(y ~ ., data = df_new)
+    spc <- summary(reg)
+
+    prv = predict(reg, dfv)
+    new_m2 = mean((prv-dfv$yv)^2)
+    impr[i] <- (new_m2 - mv)
+    
+    rf1 = randomForest(y ~ ., data = df_new, mtry = 10)
+    
+    prfv = predict(rf1, dfv)
+    new_rfm2 = mean((prfv-dfv$yv)^2)
+    imprfr[i] <- (new_rfm2 - mvr)
+    
+    dfv_new <- dfv
+    dfv_new[i] <- dfv_new[sample(1:n_size), i]
+    
+    pp_valid = predict(reg_full, dfv_new)
+    sp_valid = (pp_valid-dfv_new$yv)
+    new_mv = mean((pp_valid-dfv_new$yv)^2)
+    impv[i] <- (new_mv - mv)
+    
+    pr_valid = predict(rf, dfv_new)
+    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    imprfv[i] <- (new_rfmv - mvr)
+  }
+  
+  imp1 <- pmax(impr, 0)
+  simp <- sqrt(imp1)
+  permute_refit <- permute_refit + simp / mrep
+  
+  impv1 <- pmax(impv, 0)
+  simpv <- sqrt(impv1)
+  permute_valid <- permute_valid + simpv / mrep
+  
+  imprf1 <- pmax(imprfr, 0)
+  simprf <- sqrt(imprf1)
+  permute_refit_rf <- permute_refit + simprf / mrep
+  
+  imprfv1 <- pmax(imprfv, 0)
+  simprfv <- sqrt(imprfv1)
+  permute_valid_rf <- permute_valid + simprfv / mrep
+  
+  drop_impr <- vector(length = 8)
+  drop_impv <- vector(length = 8)
+  drop_imprf <- vector(length = 8)
+  drop_imprfv <- vector(length = 8)
+
+  for (i in seq_len(8)) {
+    df_new <- strobl
+    df_new[, i] <- 0
+    reg <- lm(y ~ ., data = df_new)
+    sdc <- summary(reg)
+
+    prv = predict(reg, dfv)
+    new_m2 = mean((prv-dfv$yv)^2)
+    drop_impr[i] <- (new_m2 - mv)
+    
+    rf2 = randomForest(y ~ ., data = df_new, mtry = 10)
+    
+    prfv = predict(rf2, dfv)
+    new_rfm2 = mean((prfv-dfv$yv)^2)
+    drop_imprf[i] <- (new_rfm2 - mvr)
+    
+    dfv_new <- dfv
+    dfv_new[, i] <- 0
+    
+    dp_valid = predict(reg_full, dfv_new)
+    sd_valid = (dp_valid-dfv_new$yv)
+    new_mv = mean((dp_valid-dfv_new$yv)^2)
+    drop_impv[i] <- (new_mv - mv)
+    
+    pr_valid = predict(rf, dfv_new)
+    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    drop_imprfv[i] <- (new_rfmv - mvr)
+  }
+  
+  imp1 <- pmax(drop_impr, 0)
+  simp <- sqrt(imp1)
+  drop_refit <- drop_refit + simp / mrep
+  
+  drop_impv1 <- pmax(drop_impv, 0)
+  drop_simpv <- sqrt(drop_impv1)
+  drop_valid <- drop_valid + drop_simpv / mrep
+  
+  imprf1 <- pmax(drop_imprf, 0)
+  simprf <- sqrt(imprf1)
+  drop_refit_rf <- drop_refit + simprf / mrep
+  
+  drop_imprfv1 <- pmax(drop_imprfv, 0)
+  drop_simprfv <- sqrt(drop_imprfv1)
+  drop_valid_rf <- drop_valid + drop_simprfv / mrep
+}
+
+# df = as.data.frame(cbind(pp_res, dp_res, pp_valid, dp_valid))
+# ggpairs(df)
+# df = as.data.frame(cbind(sp_res, sd_res, sp_valid, sd_valid))
+# ggpairs(df)
+sc
+rf$rsq[500]
+
+sdf <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+                           Estimate = sc$coefficients[2:9, 1],
+                           permute_valid, drop_valid,
+                           t_value = sc$coefficients[2:9, 3],
+                           permute_refit, drop_refit))
+sdf
+ggpairs(sdf)
+#ggsave("stroblf.pdf", ggpairs(sdf), dpi = 2400, width = 7, height = 7)
+
+# set.seed(123)
+
+#vimp = vip::vi_firm(rf, train = strobl)
+#pdpImp <- vimp$Importance
+#imp_df = cbind(imp, pdpImp)[1:8, ]
+
+sdf1 <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+                           Estimate = sc$coefficients[2:9, 1],
+                           permute_valid = permute_valid_rf, 
+                           drop_valid = drop_valid_rf,
+                           t_value = sc$coefficients[2:9, 3],
+                           rf_oob = imp_df$`%IncMSE`,
+                           permute_refit = permute_refit_rf, 
+                           drop_refit = drop_refit_rf))
+sdf1
+ggpairs(sdf1)
+
+
+#ggsave("stroblrf.jpg", ggpairs(sdf1), dpi = 2400, width = 7, height = 7)
+```
+
+
+\newpage
+## Repeat with Higher SD
+
+```{r, eval=FALSE}
+# permute_refit <- vector(length = 8)
+# drop_refit <- vector(length = 8)
+# 
+# permute_refit_old <- vector(length = 8)
+# drop_refit_old <- vector(length = 8)
+
+permute_refit <- vector(length = 8)
+drop_refit <- vector(length = 8)
+
+permute_valid <- vector(length = 8)
+drop_valid <- vector(length = 8)
+
+set.seed(123)
+mrep <- 1
+sdv = 30
+n_size = 1000
+
+for (j in seq_len(mrep)) {
+  sig <- diag(1, 12, 12)
+
+  for (i in 1:4) {
+    for (k in 1:4) {
+      sig[i, k] <- ifelse(i == k, 1, 0.95)
+    }
+  }
+  strobl <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+
+  y <- 5 * strobl[, 1] + 5 * strobl[, 2] + 2 * strobl[, 3] +
+    5 * strobl[, 5] + 5 * strobl[, 6] + 2 * strobl[, 7] +
+    rnorm(n_size, mean = 0, sd = sdv)
+  strobl <- data.frame(cbind(strobl, y))
+  
+  dfv <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+  yv <- 5 * dfv[, 1] + 5 * dfv[, 2] + 2 * dfv[, 3] +
+    5 * dfv[, 5] + 5 * dfv[, 6] + 2 * dfv[, 7] +
+    rnorm(n_size, mean = 0, sd = sdv)
+  dfv <- data.frame(cbind(dfv, yv))
+
+  reg_full <- lm(y ~ ., data = strobl)
+  sc <- summary(reg_full)
+  m <- mean(sc$residuals^2)
+  
+  p = predict(reg_full, dfv)
+  mv = mean((p-dfv$yv)^2)
+  
+  # imp <- vector(length = 8)
+  # impo <- vector(length = 8)
+  impr <- vector(length = 8)
+  impv <- vector(length = 8)
+  lpc <- list()
+  for (i in seq_len(8)) {
+    df_new <- strobl
+    df_new[i] <- df_new[sample(1:n_size), i]
+    reg <- lm(y ~ ., data = df_new)
+    spc <- summary(reg)
+    # new_m <- mean(spc$residuals^2)
+    lpc[[i]] <- spc
+    names(lpc)[i] <- paste0("s", i)
+    # imp[i] <- new_m - m
+    # 
+    # pp_res = predict(reg, df_new)
+    # sp_res = (pp_res-df_new$y)
+    # 
+    # pr = predict(reg, strobl)
+    # new_m1 = mean((pr-strobl$y)^2)
+    # impo[i] <- new_m1 - m
+
+    prv = predict(reg, dfv)
+    new_m2 = mean((prv-dfv$yv)^2)
+    impr[i] <- (new_m2 - mv)#/mv
+    
+    dfv_new <- dfv
+    dfv_new[i] <- dfv_new[sample(1:n_size), i]
+    pp_valid = predict(reg_full, dfv_new)
+    sp_valid = (pp_valid-dfv_new$yv)
+    new_mv = mean((pp_valid-dfv_new$yv)^2)
+    impv[i] <- (new_mv - mv)#/mv
+  }
+
+  # imp1 <- pmax(imp, 0)
+  # simp <- sqrt(imp1)
+  # permute_refit <- permute_refit + simp / mrep
+  # 
+  # # new
+  # imp1 <- pmax(impo, 0)
+  # simp <- sqrt(imp1)
+  # permute_refit_old <- permute_refit_old + simp / mrep
+  
+  imp1 <- pmax(impr, 0)
+  simp <- sqrt(imp1)
+  permute_refit <- permute_refit + simp / mrep
+  # end new
+  
+  impv1 <- pmax(impv, 0)
+  simpv <- sqrt(impv1)
+  permute_valid <- permute_valid + simpv / mrep
+  
+  # drop_imp <- vector(length = 8)
+  # drop_impo <- vector(length = 8)
+  drop_impr <- vector(length = 8)
+  drop_impv <- vector(length = 8)
+  ldc <- list()
+  for (i in seq_len(8)) {
+    df_new <- strobl
+    df_new[, i] <- 0
+    reg <- lm(y ~ ., data = df_new)
+    sdc <- summary(reg)
+    # new_m <- mean(sdc$residuals^2)
+    ldc[[i]] <- sdc
+    names(ldc)[i] <- paste0("s", i)
+    # drop_imp[i] <- new_m - m
+    # 
+    # dp_res = predict(reg, df_new)
+    # sd_res = (dp_res-df_new$y)
+    # 
+    # pr = predict(reg, strobl)
+    # new_m1 = mean((pr-strobl$y)^2)
+    # drop_impo[i] <- new_m1 - m
+
+    prv = predict(reg, dfv)
+    new_m2 = mean((prv-dfv$yv)^2)
+    drop_impr[i] <- (new_m2 - mv)#/mv
+    
+    dfv_new <- dfv
+    dfv_new[, i] <- 0
+    dp_valid = predict(reg_full, dfv_new)
+    sd_valid = (dp_valid-dfv_new$yv)
+    new_mv = mean((dp_valid-dfv_new$yv)^2)
+    drop_impv[i] <- (new_mv - mv)#/mv # do this everywhere
+  }
+
+  # drop_imp1 <- pmax(drop_imp, 0)
+  # drop_simp <- sqrt(drop_imp1)
+  # drop_refit <- drop_refit + drop_simp / mrep
+  # 
+  # # new
+  # imp1 <- pmax(drop_impo, 0)
+  # simp <- sqrt(imp1)
+  # drop_refit_old <- drop_refit_old + simp / mrep
+  
+  imp1 <- pmax(drop_impr, 0)
+  simp <- sqrt(imp1)
+  drop_refit <- drop_refit + simp / mrep
+  # end new
+  
+  drop_impv1 <- pmax(drop_impv, 0)
+  drop_simpv <- sqrt(drop_impv1)
+  drop_valid <- drop_valid + drop_simpv / mrep
+}
+
+# df = as.data.frame(cbind(pp_res, dp_res, pp_valid, dp_valid))
+# # ggpairs(df)
+# 
+# df = as.data.frame(cbind(sp_res, sd_res, sp_valid, sd_valid))
+# ggpairs(df)
+sc
+
+sdf <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+                           Estimate = sc$coefficients[2:9, 1],
+                           permute_valid, drop_valid,
+                           t_value = sc$coefficients[2:9, 3],
+                           permute_refit, drop_refit))
+#cor(sdf)
+sdf
+Ind = as.factor(rep(c("No", "Yes"), each = 4))
+
+ggpairs(sdf, aes(col = Ind))
+
+
+g <- ggpairs(sdf, legend = c(2,1),
+             lower = list(mapping = aes(color = Ind)),
+             upper = list(continuous = wrap(ggally_cor,
+                                            stars = F)),
+             diag = list("continuous" = function(data, mapping, ...){
+               ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
+                theme_void()
+        })
+) + scale_color_manual(values = c("blue", "red"))
+
+g
+  
+#ggsave("stroblsd5.pdf", g, dpi = 2400, width = 7, height = 7)
+
+# sdfb <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+#              sc$coefficients[2:9, c(1, 3)], 
+#              # permute_refit, drop_refit,
+#              # permute_refit_old, drop_refit_old, 
+#              permute_refit, drop_refit,
+#              permute_valid, drop_valid))
+# ggpairs(sdfb)
+
+
+# set.seed(123)
+# rf <- randomForest(y ~ ., data = strobl, importance = TRUE)
+# rf$rsq[500]
+# #vimp = vip::vi_firm(rf, train = strobl)
+# imp = sqrt(as.data.frame(pmax(importance(rf), 0)))
+# #pdpImp <- vimp$Importance
+# #imp_df = cbind(imp, pdpImp)[1:8, ]
+# imp_df = imp[1:8, ]
+
+# pd <- pdp_compare(rf)
+# pd$full_num
+# imp <- pd$imp
+#o <- order(as.numeric(gsub("V", "", imp$var)))[1:8]
+
+#sdd <- cbind(sdf, pd$imp[o, c(2, 4, 6)])
+
+# sdd <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+#              sc$coefficients[2:9, c(1, 3)], 
+#              permute_refit,
+#              permute_valid, rf_permute = imp_df$`%IncMSE`))
+#sdd
+#cor(sdd)
+#data.frame(v1 = cor(sdd)[1,])
+#ggpairs(sdd)
+#ggsave("stroblrf.jpg", ggpairs(sdd), dpi = 2400, width = 7, height = 7)
+
+# sddb <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+#              sc$coefficients[2:9, c(1, 3)], 
+#              # permute_refit, 
+#              # permute_refit_old, 
+#              permute_refit,
+#              permute_valid, imp_df))
+# ggpairs(sddb)
+
+
+# set.seed(123)
+# rf12 <- randomForest(y ~ .,
+#   data = strobl, importance = TRUE,
+#   mtry = 12
+# )
+# rf12$rsq[500]
+# #vimp12 = vip::vi_firm(rf12, train = strobl)
+# imp12 = sqrt(as.data.frame(pmax(importance(rf12), 0)))
+# #pdpImp12 <- vimp12$Importance
+# #imp_df12 = cbind(imp12, pdpImp12)[1:8, ]
+# imp_df12 = imp12[1:8, ]
+
+# pd12 <- pdp_compare(rf, trellis = F)
+# pd12$full_num
+# imp <- pd12$imp
+# o <- order(as.numeric(gsub("V", "", imp$var)))[1:8]
+
+#sdd1 <- cbind(sdf, pd12$imp[o, c(4, 6)])
+
+# sdd1 <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+#              sc$coefficients[2:9, c(1, 3)], permute_refit,
+#              permute_valid, RF_permute = imp_df$`%IncMSE`,
+#              RF12_permute = imp_df12$`%IncMSE`))
+#cor(sdd1)
+# sdd1
+# data.frame(v1 = cor(sdd1)[1,])
+#ggpairs(sdd1)
+# ggpairs(sdd1)
+# ggsave("stroblsdrf.jpg", ggpairs(sdd1), dpi = 2400, width = 7, height = 7)
+```
