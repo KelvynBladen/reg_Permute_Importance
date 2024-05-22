@@ -1,0 +1,433 @@
+---
+title: "permute_rf_strobl_mtry"
+author: "Kelvyn Bladen"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+s <- Sys.time()
+library(ggplot2)
+library(GGally)
+library(ggeasy)
+library(randomForest)
+library(dplyr)
+library(randomForestVIP)
+library(tidyr)
+```
+
+```{r}
+rsq = vector(length = 12)
+
+rf_oob_t <- mat.or.vec(8, 12)
+rf_oob_f <- mat.or.vec(8, 12)
+# rf_pdp <- mat.or.vec(8, 12)
+
+perm_train <- mat.or.vec(8, 12)
+drop_train <- mat.or.vec(8, 12)
+
+perm_valid <- mat.or.vec(8, 12)
+drop_valid <- mat.or.vec(8, 12)
+
+mrep <- 20
+n_size = 1000
+set.seed(123)
+
+for (j in seq_len(mrep)) {
+  
+    sig <- diag(1, 12, 12)
+  
+    for (ii in 1:4) {
+      for (jj in 1:4) {
+        sig[ii, jj] <- ifelse(ii == jj, 1, 0.95)
+      }
+    }
+    
+    strobl <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+  
+    y <- 5 * strobl[, 1] + 5 * strobl[, 2] + 2 * strobl[, 3] +
+      5 * strobl[, 5] + 5 * strobl[, 6] + 2 * strobl[, 7] +
+      rnorm(n_size, mean = 0, sd = 1)
+    strobl <- data.frame(cbind(strobl, y))
+    
+    dfv <- MASS::mvrnorm(n_size, mu = rep(0, 12), Sigma = sig)
+    y <- 5 * dfv[, 1] + 5 * dfv[, 2] + 2 * dfv[, 3] +
+      5 * dfv[, 5] + 5 * dfv[, 6] + 2 * dfv[, 7] +
+      rnorm(n_size, mean = 0, sd = 1)
+    dfv <- data.frame(cbind(dfv, y))
+    
+  for (k  in seq_len(12)) {
+    r <- randomForest(y ~ ., data = strobl, mtry = k,
+                      importance = T)
+    
+    impt <- sqrt(as.data.frame(pmax(randomForest::importance(r, scale = T), 0)))
+    impt <- impt$`%IncMSE`[1:8]
+    
+    impf <- sqrt(as.data.frame(pmax(randomForest::importance(r, scale = F), 0)))
+    impf <- impf$`%IncMSE`[1:8]
+    
+    # vimp = pdp_compare(r, var_vec = 1:8, trellis = F)
+    # impp = vimp$imp[c(1, 4)] %>% arrange(var) %>% pull(sd)
+    
+    # vimp = vip::vi_firm(r, train = strobl)
+    # impp <- vimp$Importance[1:8]
+    
+    p <- predict(r, strobl)
+    m = mean((p-strobl$y)^2)
+    
+    rq = r$rsq[500]
+    
+    vp <- predict(r, dfv)
+    mv = mean((vp-dfv$y)^2)
+    
+    perm_impr <- vector(length = 8)
+    perm_impv <- vector(length = 8)
+    drop_impr <- vector(length = 8)
+    drop_impv <- vector(length = 8)
+    
+    for (i in seq_len(8)) {
+      df_new <- strobl
+      df_new[i] <- df_new[sample(1:n_size), i]
+      
+      p <- predict(r, df_new)
+      new_m = mean((p-strobl$y)^2)
+      perm_impr[i] <- new_m - m
+      
+      ##########################################
+      
+      v_new <- dfv
+      v_new[i] <- v_new[sample(1:n_size), i]
+      
+      vp <- predict(r, v_new)
+      new_vm = mean((vp-dfv$y)^2)
+      perm_impv[i] <- new_vm - mv
+      
+      ###########################################
+      
+      df_new <- strobl
+      df_new[, i] <- 0
+      
+      p <- predict(r, df_new)
+      new_m = mean((p-strobl$y)^2)
+      drop_impr[i] <- new_m - m
+      
+      ##############################################
+  
+      v_new <- dfv
+      v_new[, i] <- 0
+  
+      vp <- predict(r, v_new)
+      new_vm = mean((vp-dfv$y)^2)
+      drop_impv[i] <- new_vm - mv
+    }
+    
+    rf_oob_t[,k] <- rf_oob_t[,k] + impt / mrep
+    rf_oob_f[,k] <- rf_oob_f[,k] + impf / mrep
+    
+    #rf_pdp[,k] <- rf_pdp[,k] + impp / mrep
+    
+    rsq[k] <- rsq[k] + rq / mrep
+    
+    simpr <- sqrt(pmax(perm_impr, 0))
+    perm_train[,k] <- perm_train[,k] + simpr / mrep
+    
+    simpv <- sqrt(pmax(perm_impv, 0))
+    perm_valid[,k] <- perm_valid[,k] + simpv / mrep
+    
+    dsimpr <- sqrt(pmax(drop_impr, 0))
+    drop_train[,k] <- drop_train[,k] + dsimpr / mrep
+    
+    dsimpv <- sqrt(pmax(drop_impv, 0))
+    drop_valid[,k] <- drop_valid[,k] + dsimpv / mrep
+  }
+  
+}
+```
+
+
+\newpage
+
+```{r, message=FALSE, warning=FALSE}
+for (i in seq_len(12)){
+  sdf <- data.frame(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
+                    rf_oob_t = rf_oob_t[,i],
+                    rf_oob_f = rf_oob_f[,i],
+                    #rf_pdp = rf_pdp[,i],
+                    perm_train = perm_train[,i], 
+                    drop_train = drop_train[,i],
+                    perm_valid = perm_valid[,i],
+                    drop_valid = drop_valid[,i])
+  print(sdf)
+  print(ggpairs(sdf))
+
+  sdf <- sdf %>% select(coef, rf_oob_f, #rf_pdp, 
+                        perm_train, perm_valid)
+  print(sdf)
+  print(ggpairs(sdf))
+}
+```
+
+```{r, message=FALSE, warning=FALSE}
+rsq
+
+Names = c("Cor1", "Cor2", "Cor3", "Cor4", "V5", "V6", "V7", "V8")
+mag <- ifelse(Names %in% c("Cor1", "Cor2", "V5", "V6"), 5,
+                   ifelse(Names %in% c("Cor3", "V7"), 2, 0))
+
+Names <- factor(Names,
+                levels = c("Cor1", "Cor2", "Cor3","Cor4", 
+                           "V5","V6","V7","V8"), ordered = T)
+Names <- factor(Names, ordered = F)
+
+rf_oob_f1 = data.frame(rf_oob_f, Names, mag)
+#rf_pdp1 = data.frame(rf_pdp, Names, mag)
+perm_train1 = data.frame(perm_train, Names, mag)
+drop_valid1 = data.frame(drop_valid, Names, mag)
+perm_valid1 = data.frame(perm_valid, Names, mag)
+
+colnames(rf_oob_f1)[1:12] <- 1:12
+rf_oob_f1 <- rf_oob_f1 %>% pivot_longer(!c(Names,mag), names_to = "mtry",
+                                        values_to = "Imp")
+rf_oob_f1$mtry <- as.numeric(rf_oob_f1$mtry)
+
+# colnames(rf_pdp1)[1:12] <- 1:12
+# rf_pdp1 <- rf_pdp1 %>% pivot_longer(!c(Names,mag), names_to = "mtry",
+#                                         values_to = "Imp")
+# rf_pdp1$mtry <- as.numeric(rf_pdp1$mtry)
+
+colnames(perm_train1)[1:12] <- 1:12
+perm_train1 <- perm_train1 %>% 
+  pivot_longer(!c(Names,mag), names_to = "mtry", values_to = "Imp")
+perm_train1$mtry <- as.numeric(perm_train1$mtry)
+
+colnames(drop_valid1)[1:12] <- 1:12
+drop_valid1 <- drop_valid1 %>% 
+  pivot_longer(!c(Names,mag), names_to = "mtry", values_to = "Imp")
+drop_valid1$mtry <- as.numeric(drop_valid1$mtry)
+
+colnames(perm_valid1)[1:12] <- 1:12
+perm_valid1 <- perm_valid1 %>% 
+  pivot_longer(!c(Names,mag), names_to = "mtry", values_to = "Imp")
+perm_valid1$mtry <- as.numeric(perm_valid1$mtry)
+
+gr <- rf_oob_f1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,max(rf_oob_f1$Imp))) +
+  ggtitle("OOB PaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gr
+
+gp <- perm_train1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,max(perm_train1$Imp))) +
+  ggtitle("Train PaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gp
+
+gd <- drop_valid1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,max(drop_valid1$Imp))) +
+  ggtitle("Validation DaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gd
+
+gv <- perm_valid1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,max(perm_valid1$Imp))) +
+  ggtitle("Validation PaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gv
+
+# gpp <- rf_pdp1 %>%
+#   ggplot(aes(x = mtry, y = Imp, color = Names, 
+#              group = Names, linetype = Names, 
+#              shape = Names)) +
+#   geom_line() +
+#   scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+#   scale_y_continuous(limits = c(0,max(rf_pdp1$Imp))) +
+#   ggtitle("PDP Variable Importance") + 
+#   geom_point(size = 5) +
+#   scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+#   scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+#   scale_size(range = c(6,6)) +
+#   ylab("Importance") + 
+#   guides(size = "none") +
+#   theme(axis.text = element_text(size = 12),
+#         axis.title = element_text(size = 15),
+#         plot.title = element_text(size = 14, face = "bold")) +
+#   easy_center_title() + easy_plot_legend_size(size = 11)
+# gpp
+
+library(patchwork)
+gr + gp + gd + gv
+ggsave("x_all_zoom.pdf", plot = gr + gp + gd + gv, dpi = 2400,
+       width = 9, height = 9)
+```
+
+```{r}
+ma = max(rf_oob_f1$Imp, perm_train1$Imp, perm_valid1$Imp, drop_valid1$Imp)
+# mp = max(rf_pdp1$Imp)
+
+gr <- rf_oob_f1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,ma)) +
+  ggtitle("OOB PaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gr
+
+gp <- perm_train1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,ma)) +
+  ggtitle("Train PaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gp
+
+gd <- drop_valid1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,ma)) +
+  ggtitle("Validation DaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gd
+
+gv <- perm_valid1 %>%
+  ggplot(aes(x = mtry, y = Imp, color = Names, 
+             group = Names, linetype = Names, 
+             shape = Names)) +
+  geom_line() +
+  scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+  scale_y_continuous(limits = c(0,ma)) +
+  ggtitle("Validation PaP Variable Importance") + 
+  geom_point(size = 5) +
+  scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+  scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+  scale_size(range = c(6,6)) +
+  ylab("Importance") + 
+  guides(size = "none") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 14, face = "bold")) +
+  easy_center_title() + easy_plot_legend_size(size = 11)
+gv
+
+# gpp <- rf_pdp1 %>%
+#   ggplot(aes(x = mtry, y = Imp, color = Names, 
+#              group = Names, linetype = Names, 
+#              shape = Names)) +
+#   geom_line() +
+#   scale_x_continuous(limits = c(1,12), breaks = seq(2,12,by=2)) +
+#   scale_y_continuous(limits = c(0,mp)) +
+#   ggtitle("PDP Variable Importance") + 
+#   geom_point(size = 5) +
+#   scale_linetype_manual(values = rep(c(1, 2), each = 4)) +
+#   scale_shape_manual(values = c(53,53,50,48,53,53,50,48)) +
+#   scale_size(range = c(6,6)) +
+#   ylab("Importance") + 
+#   guides(size = "none") +
+#   theme(axis.text = element_text(size = 12),
+#         axis.title = element_text(size = 15),
+#         plot.title = element_text(size = 14, face = "bold")) +
+#   easy_center_title() + easy_plot_legend_size(size = 11)
+# gpp
+
+library(patchwork)
+gr + gp + gd + gv
+ggsave("x_all.pdf", plot = gr + gp + gd + gv, dpi = 2400,
+       width = 9, height = 9)
+
+Sys.time() - s
+```

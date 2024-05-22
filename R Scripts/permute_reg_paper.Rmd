@@ -23,10 +23,10 @@ library(randomForestVIP)
 
 ```{r, eval=TRUE}
 set.seed(123)
-permute_refit <- vector(length = 6)
-drop_refit <- vector(length = 6)
-permute_valid <- vector(length = 6)
-drop_valid <- vector(length = 6)
+permute_LOCO <- vector(length = 6)
+drop_LOCO <- vector(length = 6)
+permute_PaP <- vector(length = 6)
+drop_PaP <- vector(length = 6)
 mrep <- 1
 for (j in seq_len(mrep)) {
   sig <- diag(1, 6, 6)
@@ -74,11 +74,11 @@ for (j in seq_len(mrep)) {
   
   imp1 <- pmax(imp, 0)
   simp <- sqrt(imp1)
-  permute_refit <- permute_refit + simp / mrep
+  permute_LOCO <- permute_LOCO + simp / mrep
   
   impv1 <- pmax(impv, 0)
   simpv <- sqrt(impv1)
-  permute_valid <- permute_valid + simpv / mrep
+  permute_PaP <- permute_PaP + simpv / mrep
 
   drop_imp <- vector(length = 6)
   drop_impv <- vector(length = 6)
@@ -105,32 +105,42 @@ for (j in seq_len(mrep)) {
 
   drop_imp1 <- pmax(drop_imp, 0)
   drop_simp <- sqrt(drop_imp1)
-  drop_refit <- drop_refit + drop_simp / mrep
+  drop_LOCO <- drop_LOCO + drop_simp / mrep
   
   drop_impv1 <- pmax(drop_impv, 0)
   drop_simpv <- sqrt(drop_impv1)
-  drop_valid <- drop_valid + drop_simpv / mrep
+  drop_PaP <- drop_PaP + drop_simpv / mrep
 }
 
 both <- as.data.frame(cbind(Coef = 5:0,
                             Estimate = s$coefficients[-1, 1],
-                            permute_valid, drop_valid,
+                            permute_PaP, drop_PaP,
                             t_value = s$coefficients[-1, 3],
-                            permute_refit, drop_refit))
+                            permute_LOCO, drop_LOCO))
 # why do these match t rather than t^2? Because I square rooted them
-ggpairs(both)
+# ggpairs(both)
 #cor(both)
 both
 
-#ggsave("ind.pdf", ggpairs(both), dpi = 2400, width = 7, height = 7)
+g <- ggpairs(both,
+             upper = list(continuous = wrap(ggally_cor,
+                                            stars = F)),
+             diag = list("continuous" = function(data, mapping, ...){
+               ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
+                theme_void()
+        })
+      )
+g
+
+ggsave("ind.pdf", g, dpi = 2400, width = 8, height = 8)
 ```
 
 ```{r, eval=TRUE}
 set.seed(123)
-permute_refit <- vector(length = 6)
-drop_refit <- vector(length = 6)
-permute_valid <- vector(length = 6)
-drop_valid <- vector(length = 6)
+permute_LOCO <- vector(length = 6)
+drop_LOCO <- vector(length = 6)
+permute_PaP <- vector(length = 6)
+drop_PaP <- vector(length = 6)
 mrep <- 1
 for (j in seq_len(mrep)) {
   sig <- diag(1, 6, 6)
@@ -178,11 +188,11 @@ for (j in seq_len(mrep)) {
   
   imp1 <- pmax(imp, 0)
   simp <- sqrt(imp1)
-  permute_refit <- permute_refit + simp / mrep
+  permute_LOCO <- permute_LOCO + simp / mrep
   
   impv1 <- pmax(impv, 0)
   simpv <- sqrt(impv1)
-  permute_valid <- permute_valid + simpv / mrep
+  permute_PaP <- permute_PaP + simpv / mrep
 
   drop_imp <- vector(length = 6)
   drop_impv <- vector(length = 6)
@@ -209,42 +219,52 @@ for (j in seq_len(mrep)) {
 
   drop_imp1 <- pmax(drop_imp, 0)
   drop_simp <- sqrt(drop_imp1)
-  drop_refit <- drop_refit + drop_simp / mrep
+  drop_LOCO <- drop_LOCO + drop_simp / mrep
   
   drop_impv1 <- pmax(drop_impv, 0)
   drop_simpv <- sqrt(drop_impv1)
-  drop_valid <- drop_valid + drop_simpv / mrep
+  drop_PaP <- drop_PaP + drop_simpv / mrep
 }
 
 s
 
 both <- as.data.frame(cbind(coef = 5:0,
                             Estimate = s$coefficients[-1, 1],
-                            permute_valid, drop_valid,
+                            permute_PaP, drop_PaP,
                             t_value = s$coefficients[-1, 3],
-                            permute_refit, drop_refit))
+                            permute_LOCO, drop_LOCO))
 # why do these match t rather than t^2? Because I square rooted them
-ggpairs(both)
+# ggpairs(both)
 #cor(both)
 both
 
-#ggsave("ind.pdf", ggpairs(both), dpi = 2400, width = 7, height = 7)
+g1 <- ggpairs(both,
+             upper = list(continuous = wrap(ggally_cor,
+                                            stars = F)),
+             diag = list("continuous" = function(data, mapping, ...){
+               ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
+                theme_void()
+        })
+      )
+g1
+
+ggsave("indsd.pdf", g1, dpi = 2400, width = 8, height = 8)
 ```
 
 \newpage
 
 ```{r, warning=FALSE, message=FALSE}
-permute_refit <- vector(length = 8)
-drop_refit <- vector(length = 8)
+permute_LOCO <- vector(length = 8)
+drop_LOCO <- vector(length = 8)
 
-permute_valid <- vector(length = 8)
-drop_valid <- vector(length = 8)
+permute_PaP <- vector(length = 8)
+drop_PaP <- vector(length = 8)
 
-permute_refit_rf <- vector(length = 8)
-drop_refit_rf <- vector(length = 8)
+permute_LOCO_rf <- vector(length = 8)
+drop_LOCO_rf <- vector(length = 8)
 
-permute_valid_rf <- vector(length = 8)
-drop_valid_rf <- vector(length = 8)
+permute_PaP_rf <- vector(length = 8)
+drop_PaP_rf <- vector(length = 8)
 
 set.seed(123)
 mrep <- 1
@@ -313,31 +333,31 @@ for (j in seq_len(mrep)) {
     dfv_new <- dfv
     dfv_new[i] <- dfv_new[sample(1:n_size), i]
     
-    pp_valid = predict(reg_full, dfv_new)
-    sp_valid = (pp_valid-dfv_new$yv)
-    new_mv = mean((pp_valid-dfv_new$yv)^2)
+    pp_PaP = predict(reg_full, dfv_new)
+    sp_PaP = (pp_PaP-dfv_new$yv)
+    new_mv = mean((pp_PaP-dfv_new$yv)^2)
     impv[i] <- (new_mv - mv)
     
-    pr_valid = predict(rf, dfv_new)
-    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    pr_PaP = predict(rf, dfv_new)
+    new_rfmv = mean((pr_PaP-dfv_new$yv)^2)
     imprfv[i] <- (new_rfmv - mvr)
   }
   
   imp1 <- pmax(impr, 0)
   simp <- sqrt(imp1)
-  permute_refit <- permute_refit + simp / mrep
+  permute_LOCO <- permute_LOCO + simp / mrep
   
   impv1 <- pmax(impv, 0)
   simpv <- sqrt(impv1)
-  permute_valid <- permute_valid + simpv / mrep
+  permute_PaP <- permute_PaP + simpv / mrep
   
   imprf1 <- pmax(imprfr, 0)
   simprf <- sqrt(imprf1)
-  permute_refit_rf <- permute_refit + simprf / mrep
+  permute_LOCO_rf <- permute_LOCO + simprf / mrep
   
   imprfv1 <- pmax(imprfv, 0)
   simprfv <- sqrt(imprfv1)
-  permute_valid_rf <- permute_valid + simprfv / mrep
+  permute_PaP_rf <- permute_PaP + simprfv / mrep
   
   drop_impr <- vector(length = 8)
   drop_impv <- vector(length = 8)
@@ -363,48 +383,61 @@ for (j in seq_len(mrep)) {
     dfv_new <- dfv
     dfv_new[, i] <- 0
     
-    dp_valid = predict(reg_full, dfv_new)
-    sd_valid = (dp_valid-dfv_new$yv)
-    new_mv = mean((dp_valid-dfv_new$yv)^2)
+    dp_PaP = predict(reg_full, dfv_new)
+    sd_PaP = (dp_PaP-dfv_new$yv)
+    new_mv = mean((dp_PaP-dfv_new$yv)^2)
     drop_impv[i] <- (new_mv - mv)
     
-    pr_valid = predict(rf, dfv_new)
-    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    pr_PaP = predict(rf, dfv_new)
+    new_rfmv = mean((pr_PaP-dfv_new$yv)^2)
     drop_imprfv[i] <- (new_rfmv - mvr)
   }
   
   imp1 <- pmax(drop_impr, 0)
   simp <- sqrt(imp1)
-  drop_refit <- drop_refit + simp / mrep
+  drop_LOCO <- drop_LOCO + simp / mrep
   
   drop_impv1 <- pmax(drop_impv, 0)
   drop_simpv <- sqrt(drop_impv1)
-  drop_valid <- drop_valid + drop_simpv / mrep
+  drop_PaP <- drop_PaP + drop_simpv / mrep
   
   imprf1 <- pmax(drop_imprf, 0)
   simprf <- sqrt(imprf1)
-  drop_refit_rf <- drop_refit + simprf / mrep
+  drop_LOCO_rf <- drop_LOCO + simprf / mrep
   
   drop_imprfv1 <- pmax(drop_imprfv, 0)
   drop_simprfv <- sqrt(drop_imprfv1)
-  drop_valid_rf <- drop_valid + drop_simprfv / mrep
+  drop_PaP_rf <- drop_PaP + drop_simprfv / mrep
 }
 
-# df = as.data.frame(cbind(pp_res, dp_res, pp_valid, dp_valid))
+# df = as.data.frame(cbind(pp_res, dp_res, pp_PaP, dp_PaP))
 # ggpairs(df)
-# df = as.data.frame(cbind(sp_res, sd_res, sp_valid, sd_valid))
+# df = as.data.frame(cbind(sp_res, sd_res, sp_PaP, sd_PaP))
 # ggpairs(df)
 sc
 rf$rsq[500]
 
 sdf <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
                            Estimate = sc$coefficients[2:9, 1],
-                           permute_valid, drop_valid,
+                           permute_PaP, drop_PaP,
                            t_value = sc$coefficients[2:9, 3],
-                           permute_refit, drop_refit))
+                           permute_LOCO, drop_LOCO))
 sdf
-ggpairs(sdf)
-#ggsave("stroblf.pdf", ggpairs(sdf), dpi = 2400, width = 7, height = 7)
+# ggpairs(sdf)
+
+status = as.factor(rep(c("Corr", "Orth"), each = 4))
+
+g <- ggpairs(sdf, legend = c(2,1),
+             lower = list(mapping = aes(shape = status)),
+             upper = list(continuous = wrap(ggally_cor,
+                                            stars = F)),
+             diag = list("continuous" = function(data, mapping, ...){
+               ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
+                theme_void()
+        })
+      )
+
+ggsave("strobl.pdf", g, dpi = 2400, width = 8, height = 8)
 
 # set.seed(123)
 #vimp = vip::vi_firm(rf, train = strobl)
@@ -413,34 +446,42 @@ ggpairs(sdf)
 
 sdf1 <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
                            Estimate = sc$coefficients[2:9, 1],
-                           permute_valid = permute_valid_rf, 
-                           drop_valid = drop_valid_rf,
+                           permute_PaP = permute_PaP_rf, 
+                           drop_PaP = drop_PaP_rf,
                            t_value = sc$coefficients[2:9, 3],
-                           rf_oob = imp_df$`%IncMSE`,
-                           permute_refit = permute_refit_rf, 
-                           drop_refit = drop_refit_rf))
+                           OOB_PaP = imp_df$`%IncMSE`,
+                           permute_LOCO = permute_LOCO_rf, 
+                           drop_LOCO = drop_LOCO_rf))
 sdf1
-ggpairs(sdf1)
 
+g1 <- ggpairs(sdf1, legend = c(2,1),
+             lower = list(mapping = aes(shape = status)),
+             upper = list(continuous = wrap(ggally_cor,
+                                            stars = F)),
+             diag = list("continuous" = function(data, mapping, ...){
+               ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
+                theme_void()
+        })
+      )
 
-#ggsave("stroblrf.jpg", ggpairs(sdf1), dpi = 2400, width = 7, height = 7)
+ggsave("stroblrf.pdf", g1, dpi = 2400, width = 9, height = 9)
 ```
 
 \newpage
 ## Repeat with High SD
 
 ```{r, warning=FALSE, message=FALSE}
-permute_refit <- vector(length = 8)
-drop_refit <- vector(length = 8)
+permute_LOCO <- vector(length = 8)
+drop_LOCO <- vector(length = 8)
 
-permute_valid <- vector(length = 8)
-drop_valid <- vector(length = 8)
+permute_PaP <- vector(length = 8)
+drop_PaP <- vector(length = 8)
 
-permute_refit_rf <- vector(length = 8)
-drop_refit_rf <- vector(length = 8)
+permute_LOCO_rf <- vector(length = 8)
+drop_LOCO_rf <- vector(length = 8)
 
-permute_valid_rf <- vector(length = 8)
-drop_valid_rf <- vector(length = 8)
+permute_PaP_rf <- vector(length = 8)
+drop_PaP_rf <- vector(length = 8)
 
 set.seed(123)
 mrep <- 1
@@ -509,31 +550,31 @@ for (j in seq_len(mrep)) {
     dfv_new <- dfv
     dfv_new[i] <- dfv_new[sample(1:n_size), i]
     
-    pp_valid = predict(reg_full, dfv_new)
-    sp_valid = (pp_valid-dfv_new$yv)
-    new_mv = mean((pp_valid-dfv_new$yv)^2)
+    pp_PaP = predict(reg_full, dfv_new)
+    sp_PaP = (pp_PaP-dfv_new$yv)
+    new_mv = mean((pp_PaP-dfv_new$yv)^2)
     impv[i] <- (new_mv - mv)
     
-    pr_valid = predict(rf, dfv_new)
-    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    pr_PaP = predict(rf, dfv_new)
+    new_rfmv = mean((pr_PaP-dfv_new$yv)^2)
     imprfv[i] <- (new_rfmv - mvr)
   }
   
   imp1 <- pmax(impr, 0)
   simp <- sqrt(imp1)
-  permute_refit <- permute_refit + simp / mrep
+  permute_LOCO <- permute_LOCO + simp / mrep
   
   impv1 <- pmax(impv, 0)
   simpv <- sqrt(impv1)
-  permute_valid <- permute_valid + simpv / mrep
+  permute_PaP <- permute_PaP + simpv / mrep
   
   imprf1 <- pmax(imprfr, 0)
   simprf <- sqrt(imprf1)
-  permute_refit_rf <- permute_refit + simprf / mrep
+  permute_LOCO_rf <- permute_LOCO + simprf / mrep
   
   imprfv1 <- pmax(imprfv, 0)
   simprfv <- sqrt(imprfv1)
-  permute_valid_rf <- permute_valid + simprfv / mrep
+  permute_PaP_rf <- permute_PaP + simprfv / mrep
   
   drop_impr <- vector(length = 8)
   drop_impv <- vector(length = 8)
@@ -559,48 +600,58 @@ for (j in seq_len(mrep)) {
     dfv_new <- dfv
     dfv_new[, i] <- 0
     
-    dp_valid = predict(reg_full, dfv_new)
-    sd_valid = (dp_valid-dfv_new$yv)
-    new_mv = mean((dp_valid-dfv_new$yv)^2)
+    dp_PaP = predict(reg_full, dfv_new)
+    sd_PaP = (dp_PaP-dfv_new$yv)
+    new_mv = mean((dp_PaP-dfv_new$yv)^2)
     drop_impv[i] <- (new_mv - mv)
     
-    pr_valid = predict(rf, dfv_new)
-    new_rfmv = mean((pr_valid-dfv_new$yv)^2)
+    pr_PaP = predict(rf, dfv_new)
+    new_rfmv = mean((pr_PaP-dfv_new$yv)^2)
     drop_imprfv[i] <- (new_rfmv - mvr)
   }
   
   imp1 <- pmax(drop_impr, 0)
   simp <- sqrt(imp1)
-  drop_refit <- drop_refit + simp / mrep
+  drop_LOCO <- drop_LOCO + simp / mrep
   
   drop_impv1 <- pmax(drop_impv, 0)
   drop_simpv <- sqrt(drop_impv1)
-  drop_valid <- drop_valid + drop_simpv / mrep
+  drop_PaP <- drop_PaP + drop_simpv / mrep
   
   imprf1 <- pmax(drop_imprf, 0)
   simprf <- sqrt(imprf1)
-  drop_refit_rf <- drop_refit + simprf / mrep
+  drop_LOCO_rf <- drop_LOCO + simprf / mrep
   
   drop_imprfv1 <- pmax(drop_imprfv, 0)
   drop_simprfv <- sqrt(drop_imprfv1)
-  drop_valid_rf <- drop_valid + drop_simprfv / mrep
+  drop_PaP_rf <- drop_PaP + drop_simprfv / mrep
 }
 
-# df = as.data.frame(cbind(pp_res, dp_res, pp_valid, dp_valid))
+# df = as.data.frame(cbind(pp_res, dp_res, pp_PaP, dp_PaP))
 # ggpairs(df)
-# df = as.data.frame(cbind(sp_res, sd_res, sp_valid, sd_valid))
+# df = as.data.frame(cbind(sp_res, sd_res, sp_PaP, sd_PaP))
 # ggpairs(df)
 sc
 rf$rsq[500]
 
 sdf <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
                            Estimate = sc$coefficients[2:9, 1],
-                           permute_valid, drop_valid,
+                           permute_PaP, drop_PaP,
                            t_value = sc$coefficients[2:9, 3],
-                           permute_refit, drop_refit))
+                           permute_LOCO, drop_LOCO))
 sdf
-ggpairs(sdf)
-#ggsave("stroblf.pdf", ggpairs(sdf), dpi = 2400, width = 7, height = 7)
+
+g <- ggpairs(sdf, legend = c(2,1),
+             lower = list(mapping = aes(shape = status)),
+             upper = list(continuous = wrap(ggally_cor,
+                                            stars = F)),
+             diag = list("continuous" = function(data, mapping, ...){
+               ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
+                theme_void()
+        })
+      )
+
+ggsave("stroblsd.pdf", g, dpi = 2400, width = 8, height = 8)
 
 # set.seed(123)
 
@@ -610,17 +661,25 @@ ggpairs(sdf)
 
 sdf1 <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
                            Estimate = sc$coefficients[2:9, 1],
-                           permute_valid = permute_valid_rf, 
-                           drop_valid = drop_valid_rf,
+                           permute_PaP = permute_PaP_rf, 
+                           drop_PaP = drop_PaP_rf,
                            t_value = sc$coefficients[2:9, 3],
-                           rf_oob = imp_df$`%IncMSE`,
-                           permute_refit = permute_refit_rf, 
-                           drop_refit = drop_refit_rf))
+                           OOB_PaP = imp_df$`%IncMSE`,
+                           permute_LOCO = permute_LOCO_rf, 
+                           drop_LOCO = drop_LOCO_rf))
 sdf1
-ggpairs(sdf1)
 
+g1 <- ggpairs(sdf1, legend = c(2,1),
+             lower = list(mapping = aes(shape = status)),
+             upper = list(continuous = wrap(ggally_cor,
+                                            stars = F)),
+             diag = list("continuous" = function(data, mapping, ...){
+               ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
+                theme_void()
+        })
+      )
 
-#ggsave("stroblrf.jpg", ggpairs(sdf1), dpi = 2400, width = 7, height = 7)
+ggsave("stroblrfsd.pdf", g1, dpi = 2400, width = 9, height = 9)
 ```
 
 
@@ -628,17 +687,17 @@ ggpairs(sdf1)
 ## Repeat with Higher SD
 
 ```{r, eval=FALSE}
-# permute_refit <- vector(length = 8)
-# drop_refit <- vector(length = 8)
+# permute_LOCO <- vector(length = 8)
+# drop_LOCO <- vector(length = 8)
 # 
-# permute_refit_old <- vector(length = 8)
-# drop_refit_old <- vector(length = 8)
+# permute_LOCO_old <- vector(length = 8)
+# drop_LOCO_old <- vector(length = 8)
 
-permute_refit <- vector(length = 8)
-drop_refit <- vector(length = 8)
+permute_LOCO <- vector(length = 8)
+drop_LOCO <- vector(length = 8)
 
-permute_valid <- vector(length = 8)
-drop_valid <- vector(length = 8)
+permute_PaP <- vector(length = 8)
+drop_PaP <- vector(length = 8)
 
 set.seed(123)
 mrep <- 1
@@ -701,29 +760,29 @@ for (j in seq_len(mrep)) {
     
     dfv_new <- dfv
     dfv_new[i] <- dfv_new[sample(1:n_size), i]
-    pp_valid = predict(reg_full, dfv_new)
-    sp_valid = (pp_valid-dfv_new$yv)
-    new_mv = mean((pp_valid-dfv_new$yv)^2)
+    pp_PaP = predict(reg_full, dfv_new)
+    sp_PaP = (pp_PaP-dfv_new$yv)
+    new_mv = mean((pp_PaP-dfv_new$yv)^2)
     impv[i] <- (new_mv - mv)#/mv
   }
 
   # imp1 <- pmax(imp, 0)
   # simp <- sqrt(imp1)
-  # permute_refit <- permute_refit + simp / mrep
+  # permute_LOCO <- permute_LOCO + simp / mrep
   # 
   # # new
   # imp1 <- pmax(impo, 0)
   # simp <- sqrt(imp1)
-  # permute_refit_old <- permute_refit_old + simp / mrep
+  # permute_LOCO_old <- permute_LOCO_old + simp / mrep
   
   imp1 <- pmax(impr, 0)
   simp <- sqrt(imp1)
-  permute_refit <- permute_refit + simp / mrep
+  permute_LOCO <- permute_LOCO + simp / mrep
   # end new
   
   impv1 <- pmax(impv, 0)
   simpv <- sqrt(impv1)
-  permute_valid <- permute_valid + simpv / mrep
+  permute_PaP <- permute_PaP + simpv / mrep
   
   # drop_imp <- vector(length = 8)
   # drop_impo <- vector(length = 8)
@@ -753,70 +812,71 @@ for (j in seq_len(mrep)) {
     
     dfv_new <- dfv
     dfv_new[, i] <- 0
-    dp_valid = predict(reg_full, dfv_new)
-    sd_valid = (dp_valid-dfv_new$yv)
-    new_mv = mean((dp_valid-dfv_new$yv)^2)
+    dp_PaP = predict(reg_full, dfv_new)
+    sd_PaP = (dp_PaP-dfv_new$yv)
+    new_mv = mean((dp_PaP-dfv_new$yv)^2)
     drop_impv[i] <- (new_mv - mv)#/mv # do this everywhere
   }
 
   # drop_imp1 <- pmax(drop_imp, 0)
   # drop_simp <- sqrt(drop_imp1)
-  # drop_refit <- drop_refit + drop_simp / mrep
+  # drop_LOCO <- drop_LOCO + drop_simp / mrep
   # 
   # # new
   # imp1 <- pmax(drop_impo, 0)
   # simp <- sqrt(imp1)
-  # drop_refit_old <- drop_refit_old + simp / mrep
+  # drop_LOCO_old <- drop_LOCO_old + simp / mrep
   
   imp1 <- pmax(drop_impr, 0)
   simp <- sqrt(imp1)
-  drop_refit <- drop_refit + simp / mrep
+  drop_LOCO <- drop_LOCO + simp / mrep
   # end new
   
   drop_impv1 <- pmax(drop_impv, 0)
   drop_simpv <- sqrt(drop_impv1)
-  drop_valid <- drop_valid + drop_simpv / mrep
+  drop_PaP <- drop_PaP + drop_simpv / mrep
 }
 
-# df = as.data.frame(cbind(pp_res, dp_res, pp_valid, dp_valid))
+# df = as.data.frame(cbind(pp_res, dp_res, pp_PaP, dp_PaP))
 # # ggpairs(df)
 # 
-# df = as.data.frame(cbind(sp_res, sd_res, sp_valid, sd_valid))
+# df = as.data.frame(cbind(sp_res, sd_res, sp_PaP, sd_PaP))
 # ggpairs(df)
 sc
 
 sdf <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
                            Estimate = sc$coefficients[2:9, 1],
-                           permute_valid, drop_valid,
+                           permute_PaP, drop_PaP,
                            t_value = sc$coefficients[2:9, 3],
-                           permute_refit, drop_refit))
+                           permute_LOCO, drop_LOCO))
 #cor(sdf)
 sdf
-Ind = as.factor(rep(c("No", "Yes"), each = 4))
+status = as.factor(rep(c("Corr", "Orth"), each = 4))
+ggpairs(sdf, showStrips = FALSE, axisLabels = "internal")
+ggpairs(sdf, aes(col = status))
 
-ggpairs(sdf, aes(col = Ind))
-
-
+?ggpairs()
 g <- ggpairs(sdf, legend = c(2,1),
-             lower = list(mapping = aes(color = Ind)),
+             lower = list(mapping = aes(shape = status)),
              upper = list(continuous = wrap(ggally_cor,
                                             stars = F)),
              diag = list("continuous" = function(data, mapping, ...){
                ggally_text(rlang::as_label(mapping$x), col="black", size = 2.8) +
                 theme_void()
         })
-) + scale_color_manual(values = c("blue", "red"))
+) #+ scale_shape_manual(values = c(1, 0))
 
 g
+
   
-#ggsave("stroblsd5.pdf", g, dpi = 2400, width = 7, height = 7)
+#ggsave("stroblsd5.pdf", g, dpi = 2400, width = 8, height = 8)
 
 # sdfb <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
 #              sc$coefficients[2:9, c(1, 3)], 
-#              # permute_refit, drop_refit,
-#              # permute_refit_old, drop_refit_old, 
-#              permute_refit, drop_refit,
-#              permute_valid, drop_valid))
+#              # permute_LOCO, drop_LOCO,
+#              # permute_LOCO_old, drop_LOCO_old, 
+#              permute_LOCO, drop_LOCO,
+#              permute_PaP, drop_PaP))
 # ggpairs(sdfb)
 
 
@@ -838,20 +898,20 @@ g
 
 # sdd <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
 #              sc$coefficients[2:9, c(1, 3)], 
-#              permute_refit,
-#              permute_valid, rf_permute = imp_df$`%IncMSE`))
+#              permute_LOCO,
+#              permute_PaP, rf_permute = imp_df$`%IncMSE`))
 #sdd
 #cor(sdd)
 #data.frame(v1 = cor(sdd)[1,])
 #ggpairs(sdd)
-#ggsave("stroblrf.jpg", ggpairs(sdd), dpi = 2400, width = 7, height = 7)
+#ggsave("stroblrf.jpg", ggpairs(sdd), dpi = 2400, width = 8, height = 8)
 
 # sddb <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
 #              sc$coefficients[2:9, c(1, 3)], 
-#              # permute_refit, 
-#              # permute_refit_old, 
-#              permute_refit,
-#              permute_valid, imp_df))
+#              # permute_LOCO, 
+#              # permute_LOCO_old, 
+#              permute_LOCO,
+#              permute_PaP, imp_df))
 # ggpairs(sddb)
 
 
@@ -875,13 +935,13 @@ g
 #sdd1 <- cbind(sdf, pd12$imp[o, c(4, 6)])
 
 # sdd1 <- as.data.frame(cbind(coef = c(5, 5, 2, 0, 5, 5, 2, 0),
-#              sc$coefficients[2:9, c(1, 3)], permute_refit,
-#              permute_valid, RF_permute = imp_df$`%IncMSE`,
+#              sc$coefficients[2:9, c(1, 3)], permute_LOCO,
+#              permute_PaP, RF_permute = imp_df$`%IncMSE`,
 #              RF12_permute = imp_df12$`%IncMSE`))
 #cor(sdd1)
 # sdd1
 # data.frame(v1 = cor(sdd1)[1,])
 #ggpairs(sdd1)
 # ggpairs(sdd1)
-# ggsave("stroblsdrf.jpg", ggpairs(sdd1), dpi = 2400, width = 7, height = 7)
+# ggsave("stroblsdrf.jpg", ggpairs(sdd1), dpi = 2400, width = 8, height = 8)
 ```
